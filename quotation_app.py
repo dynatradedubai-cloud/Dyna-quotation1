@@ -1,116 +1,112 @@
 import streamlit as st
 import pandas as pd
-import openpyxl
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from datetime import datetime
 import io
 
-def apply_formatting(ws):
-    yellow_fill = PatternFill(start_color="FFF6D6", end_color="FFF6D6", fill_type="solid")
-    bold_font = Font(bold=True)
-    center_alignment = Alignment(horizontal="center", vertical="center")
-    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                         top=Side(style='thin'), bottom=Side(style='thin'))
+# Define header style
+header_fill = PatternFill(start_color="FFF9C4", end_color="FFF9C4", fill_type="solid")
+header_font = Font(bold=True)
+header_alignment = Alignment(horizontal="center", vertical="center")
+thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                     top=Side(style='thin'), bottom=Side(style='thin'))
 
-    # Header rows
+# Function to apply header formatting
+def format_headers(ws):
     ws.merge_cells("A1:I1")
     ws["A1"] = "DYNATRADE AUTOMOTIVE LLC - QUOTATION"
-    ws["A1"].fill = yellow_fill
-    ws["A1"].font = bold_font
-    ws["A1"].alignment = center_alignment
-
     ws.merge_cells("A2:B2")
     ws["A2"] = "Customer Code"
-    ws["A2"].fill = yellow_fill
-    ws["A2"].font = bold_font
-    ws["A2"].alignment = center_alignment
-
     ws.merge_cells("C2:E2")
-    ws["C2"].fill = yellow_fill
-    ws["C2"].font = bold_font
-    ws["C2"].alignment = center_alignment
-
+    ws["C2"] = ""
     ws.merge_cells("A3:B3")
     ws["A3"] = "Customer Name"
-    ws["A3"].fill = yellow_fill
-    ws["A3"].font = bold_font
-    ws["A3"].alignment = center_alignment
-
     ws.merge_cells("C3:E3")
-    ws["C3"].fill = yellow_fill
-    ws["C3"].font = bold_font
-    ws["C3"].alignment = center_alignment
-
+    ws["C3"] = ""
     ws.merge_cells("F2:G3")
     ws["F2"] = "Date:"
-    ws["F2"].fill = yellow_fill
-    ws["F2"].font = bold_font
-    ws["F2"].alignment = center_alignment
-
     ws.merge_cells("H2:I3")
     ws["H2"] = datetime.today().strftime("%d/%m/%Y")
-    ws["H2"].fill = yellow_fill
-    ws["H2"].font = bold_font
-    ws["H2"].alignment = center_alignment
 
-    headers = ["S.No", "Inquired Part No", "Part Number", "Manf.Part", "Description", "Brand", "Stock on Hand", "Unit Price", "COO"]
+    for cell in ["A1", "A2", "C2", "A3", "C3", "F2", "H2"]:
+        ws[cell].fill = header_fill
+        ws[cell].font = header_font
+        ws[cell].alignment = header_alignment
+        ws[cell].border = thin_border
+
+    headers = ["S.No", "Inquired Part No", "Part Number", "Manf.Part", "Description",
+               "Brand", "Stock on Hand", "Unit Price", "COO"]
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col_num)
         cell.value = header
-        cell.fill = yellow_fill
-        cell.font = bold_font
-        cell.alignment = center_alignment
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+        cell.border = thin_border
 
-def insert_data(ws, df):
+# Function to autofit column widths
+def autofit_columns(ws):
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            except:
+                pass
+        adjusted_width = max_length + 2
+        ws.column_dimensions[column].width = adjusted_width
+
+# Function to write data to sheet
+def write_data(ws, df):
     current_row = 5
-    previous_serial = None
+    last_serial = None
     for _, row in df.iterrows():
         serial = row["S.No"]
-        if previous_serial is not None and serial != previous_serial:
-            current_row += 1  # empty row between groups
-        for col_num, value in enumerate([
-            row["S.No"], row["Inquired Part No"], row["Part Number"], row["Manf.Part"],
-            row["Description"], row["Brand"], row["Stock on Hand"], row["Unit Price"], row["COO"]
-        ], 1):
-            cell = ws.cell(row=current_row, column=col_num, value=value)
-            cell.border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                                 top=Side(style='thin'), bottom=Side(style='thin'))
-        previous_serial = serial
+        if last_serial is not None and serial != last_serial:
+            current_row += 1  # empty row
+        for col_num, col_name in enumerate(["S.No", "Inquired Part No", "Part Number", "Manf.Part",
+                                            "Description", "Brand", "Stock on Hand", "Unit Price", "COO"], 1):
+            cell = ws.cell(row=current_row, column=col_num, value=row[col_name])
+            cell.border = thin_border
+        last_serial = serial
         current_row += 1
 
-def process_file(uploaded_file):
-    df = pd.read_excel(uploaded_file, engine="openpyxl")
-    quotation_df = df.copy()
-    zero_stock_df = quotation_df[quotation_df["Stock on Hand"] == 0].copy()
-    yellow_card_df = quotation_df[quotation_df["Brand"].isna()].copy()
-    quotation_df = quotation_df[~quotation_df.index.isin(zero_stock_df.index)]
-
-    wb = openpyxl.Workbook()
+# Function to process and generate formatted workbook
+def generate_workbook(df):
+    wb = Workbook()
     ws1 = wb.active
     ws1.title = "Quotation"
-    apply_formatting(ws1)
-    insert_data(ws1, quotation_df)
+    format_headers(ws1)
+    valid_df = df[(df["Stock on Hand"] != 0) & (df["Brand"].notna())]
+    write_data(ws1, valid_df)
+    autofit_columns(ws1)
 
     ws2 = wb.create_sheet("Zero Stock")
-    apply_formatting(ws2)
-    insert_data(ws2, zero_stock_df)
+    format_headers(ws2)
+    zero_df = df[df["Stock on Hand"] == 0]
+    zero_df = zero_df[~zero_df["S.No"].isin(valid_df["S.No"])]
+    write_data(ws2, zero_df)
+    autofit_columns(ws2)
 
     ws3 = wb.create_sheet("Yellow Card")
-    apply_formatting(ws3)
-    insert_data(ws3, yellow_card_df)
+    format_headers(ws3)
+    yellow_df = df[df["Brand"].isna()]
+    write_data(ws3, yellow_df)
+    autofit_columns(ws3)
 
-    for ws in wb.worksheets:
-        for col in ws.columns:
-            max_length = max(len(str(cell.value)) if cell.value else 0 for cell in col)
-            ws.column_dimensions[get_column_letter(col[0].column)].width = max_length + 2
+    return wb
 
+# Streamlit UI
+st.title("Quotation Formatter")
+uploaded_file = st.file_uploader("Upload Excel Dump", type=["xlsx"])
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file, sheet_name=0, engine="openpyxl")
+    wb = generate_workbook(df)
     output = io.BytesIO()
     wb.save(output)
-    return output.getvalue()
-
-st.title("Quotation Formatter App")
-uploaded_file = st.file_uploader("Upload Excel Dump File", type=["xlsx"])
-if uploaded_file:
-    formatted_data = process_file(uploaded_file)
-    st.download_button("Download Formatted Quotation", data=formatted_data, file_name="Formatted_Quotation.xlsx")
+    st.download_button("Download Formatted Quotation", output.getvalue(), file_name="Formatted_Quotation.xlsx")
