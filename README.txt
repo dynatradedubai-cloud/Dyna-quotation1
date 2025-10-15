@@ -1,17 +1,17 @@
-Quotation Formatter Streamlit App
+Quotation Formatter App
 
-Features:
-- Upload an Excel dump file.
-- Automatically formats the file into three sheets:
-  - Sheet1: Main quotation (valid Brand and Stock on Hand > 0)
-  - Zero Stock: Items with Stock on Hand = 0 (excluding common serials with Sheet1)
-  - Yellow Card: Items with empty Brand
+This Streamlit app allows you to upload an Excel dump file and download a formatted quotation workbook with three sheets:
 
-How to Run Locally:
-1. Install dependencies:
-   pip install streamlit pandas openpyxl
+1. Sheet1 - Main quotation with valid stock and brand
+2. Zero Stock - Items with zero stock, excluding serials from Sheet1
+3. Yellow Card - Items with missing brand
 
-2. Run the app:
-   streamlit run app.py
+Formatting includes:
+- Merged headers with date
+- Column headers in row 4
+- Light yellow fill, bold font, center alignment
+- Thin borders and spacing between serial groups
 
-3. Upload your Excel file and download the formatted quotation.
+To run:
+pip install streamlit pandas openpyxl
+streamlit run app.py
